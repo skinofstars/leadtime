@@ -4,32 +4,50 @@
   <meta charset='utf-8'>
   <title></title>
   <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+  <style type="text/css">
+    .footer {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      /* Set the fixed height of the footer here */
+      height: 30px;
+      padding-top: 5px;
+      background-color: #f5f5f5;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
-      <div class="col-sm-12">
-        <h1>Asana task lead time</h1>
+    <div class="col-sm-12">
+      <h1>Asana task lead time</h1>
 
-        <p>A tool to view the leadtime on completing project tasks.
-          That is, from the time you open a task to the time you close it.</p>
+      <p>A tool to view the leadtime on completing project tasks.
+        That is, from the time you open a task to the time you close it.</p>
 
-        <p>This uses RactiveJS to speak to the Asana API. All communication is
-          between you and Asana.</p>
-
-        <div id="keyContainer"></div>
-        <div class="row">
-          <div id="workspaceContainer" class="col-sm-6"></div>
-          <div id="projectContainer" class="col-sm-6"></div>
-        </div>
+      <div id="keyContainer"></div>
+      <br />
+      <div class="row">
+        <div id="workspaceContainer" class="col-sm-6"></div>
+        <div id="projectContainer" class="col-sm-6"></div>
       </div>
-
-      <div id="taskContainer"></div>
     </div>
+
+    <div id="taskContainer"></div>
   </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="col-sm-12">
+        <p>Made with <a href="https://ractivejs.org">RactiveJS</a>. All communication is between you and the Asana API.
+          Very much a work in progress - <a href="https://github.com/skinofstars/leadtime">github.com/skinofstars/leadtime</a>
+        </p>
+      </div>
+    </div>
+  </footer>
 
   <script src="//github.com/Asana/node-asana/releases/download/v0.9.6/asana-min.js"></script>
   <script src="//momentjs.com/downloads/moment.min.js"></script>
-  <script src='//cdn.ractivejs.org/latest/ractive.min.js'></script>
+  <script src='//cdnjs.cloudflare.com/ajax/libs/ractive/0.7.3/ractive.js'></script>
 
   <script id="apiSetup" type="text/ractive">
     <form on-submit="activate"  class="form-inline">
