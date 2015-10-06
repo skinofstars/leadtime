@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
   <style type="text/css">
     .footer {
-      position: absolute;
+      position: fixed;
       bottom: 0;
       width: 100%;
       /* Set the fixed height of the footer here */
@@ -24,7 +24,10 @@
       <p>A tool to view the leadtime on completing project tasks.
         That is, from the time you open a task to the time you close it.</p>
 
-      <div id="keyContainer"></div>
+      <div class="row">
+        <div id="keyContainer" class="col-sm-6"></div>
+        <div id="netInfo" class="col-sm-6"></div>
+      </div>
       <br />
       <div class="row">
         <div id="workspaceContainer" class="col-sm-6"></div>
@@ -152,6 +155,20 @@
       trySetup()
     });
 
+    var ractiveNetInfo = new Ractive({
+      el: '#netInfo',
+      template: '<span class="pull-right {{infoClass}}"></span>',
+      data: {
+        netActive: false,
+      },
+      computed: {
+        infoClass: function() {
+          var active = this.get('netActive')
+          return active ? 'glyphicon glyphicon-refresh' : '';
+        }
+      }
+    })
+
     var ractiveWorkspaces = new Ractive({
       el: '#workspaceContainer',
       template: '#workspacesTemplate',
@@ -232,28 +249,22 @@
 
     function trySetup() {
       var key = ractiveApiSetup.get('apiKey');
-
       AsLead.client = Asana.Client.create().useBasicAuth(key);
 
+      ractiveNetInfo.set('netActive', true)
       AsLead.client.users.me().then(function(me) {
-        console.log(me)
+        ractiveNetInfo.set('netActive', false)
 
         ractiveWorkspaces.set({
           workspaces: me.workspaces
         })
-
-        // this returns a worspace array
-        // 3736871133687 is our main
       })
-
     }
 
     function selectWorkspace(workspaceId) {
+      ractiveNetInfo.set('netActive', true)
       AsLead.client.projects.findByWorkspace(workspaceId, { limit: 100 }).then(function(collection){
-        // console.log(collection.data)
-        // array,
-        // cmr - 13122222472783
-        // bnd - 36941853658718
+        ractiveNetInfo.set('netActive', false)
         ractiveProjects.set({
           projects: collection.data
         })
@@ -261,9 +272,9 @@
     }
 
     function tasksByProject(projectId) {
+      ractiveNetInfo.set('netActive', true)
       AsLead.client.tasks.findByProject(projectId, { limit: 100 }).then(function(collection) {
-        // returns task array
-        // console.log(collection.data);
+        ractiveNetInfo.set('netActive', false)
         tasksForProject(collection);
       })
     }
@@ -274,7 +285,9 @@
       // var sum = 0;
 
       collection.data.map(function(task){
+        ractiveNetInfo.set('netActive', true)
         AsLead.client.tasks.findById(task.id).then(function(item){
+          ractiveNetInfo.set('netActive', false)
 
           var start = moment(item.created_at);
 
