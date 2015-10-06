@@ -1,0 +1,303 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <title></title>
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container">
+      <div class="col-sm-12">
+        <h1>Asana task lead time</h1>
+
+        <p>A tool to view the leadtime on completing project tasks.
+          That is, from the time you open a task to the time you close it.</p>
+
+        <p>This uses RactiveJS to speak to the Asana API. All communication is
+          between you and Asana.</p>
+
+        <div id="keyContainer"></div>
+        <div class="row">
+          <div id="workspaceContainer" class="col-sm-6"></div>
+          <div id="projectContainer" class="col-sm-6"></div>
+        </div>
+      </div>
+
+      <div id="taskContainer"></div>
+    </div>
+  </div>
+
+  <script src="//github.com/Asana/node-asana/releases/download/v0.9.6/asana-min.js"></script>
+  <script src="//momentjs.com/downloads/moment.min.js"></script>
+  <script src='//cdn.ractivejs.org/latest/ractive.min.js'></script>
+
+  <script id="apiSetup" type="text/ractive">
+    <form on-submit="activate"  class="form-inline">
+      <div class="form-group">
+        <input class="form-control" type="text" placeholder="Your Asana api key" value="{{apiKey}}" />
+      </div>
+
+      {{!-- I think we leave the save APi key, seeing as API keys are being deprecated --}}
+      <!--
+      <div class="checkbox">
+        <label for="savekey">
+          <input type="checkbox" checked="{{saveKey}}" id="savekey"/> Save key?
+        </label>
+      </div>
+      -->
+      <button type="submit" class="btn btn-primary">Activate!</button>
+    </form>
+  </script>
+
+  <script id='workspacesTemplate' type='text/ractive'>
+    <div class="form-group">
+      <select class="form-control" value="{{workspaceSelect}}">
+        <option value=''>Choose workspace...</option>
+        {{#workspaces}}
+        <option value='{{id}}'>{{name}}</option>
+        {{/workspaces}}
+      </select>
+    </div>
+  </script>
+
+  <script id='projectsTemplate' type='text/ractive'>
+    <div class="form-group">
+      <select class="form-control" value="{{projectSelect}}">
+        <option value=''>Choose project...</option>
+        {{#projects}}
+        <option value='{{id}}'>{{name}}</option>
+        {{/projects}}
+      </select>
+    </div>
+  </script>
+
+  <script id='taskTemplate' type='text/ractive'>
+    <div class="col-sm-6">
+      <table class="table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Days</th>
+            <th>Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>Total task hrs</th>
+            <td>{{days(sum)}}</td>
+            <td>{{round(sum)}}</td>
+          </tr>
+          <tr>
+            <th>Mean avg hrs per task</th>
+            <td>{{days(avgHours)}}</td>
+            <td>{{round(avgHours)}}</td>
+          </tr>
+          <tr>
+            <th>Longest task</th>
+            <td>{{days(longest)}}</td>
+            <td>{{round(longest)}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col-sm-6">
+      {{#tasks}}
+      <div class="checkbox">
+        <label>
+          <input type="checkbox" value="{{id}}" checked='{{checked}}'>{{name}} - <strong>{{days(hoursOpen)}} days</strong> <sup>{{round(hoursOpen)}} hrs</sup>
+        </label>
+      </div>
+      {{/tasks}}
+    </div>
+  </script>
+
+
+  <script type="text/javascript">
+    // our global obj
+    var AsLead = {
+      about: "Project lead time tracker",
+      version: "0.1",
+      client: null
+    }
+
+    var ractiveApiSetup = new Ractive({
+      el: '#keyContainer',
+      template: '#apiSetup',
+      data: {
+        apiKey: '',
+        saveKey: false
+      }
+    })
+    ractiveApiSetup.on('activate', function (event) {
+      event.original.preventDefault()
+      trySetup()
+    });
+
+    var ractiveWorkspaces = new Ractive({
+      el: '#workspaceContainer',
+      template: '#workspacesTemplate',
+      data: { workspaces: [] }
+    })
+
+    ractiveWorkspaces.observe('workspaceSelect', function (workspace) {
+      // console.log(workspace)
+      if (workspace) {
+        selectWorkspace(workspace)
+      }
+    })
+
+
+    var ractiveProjects = new Ractive({
+      el: '#projectContainer',
+      template: '#projectsTemplate',
+      data: { projects: [] }
+    })
+
+    ractiveProjects.observe('projectSelect', function (project) {
+      // console.log(project)
+      if (project !== '') {
+        tasksByProject(project)
+      }
+    })
+
+    var ractiveTasks = new Ractive({
+      el: '#taskContainer',
+      template: '#taskTemplate',
+
+      // Here, we're passing in some initial data
+      data: {
+        tasks: [],
+        days: function (num) {
+          return Math.round(num / 24)
+        },
+        round: function (num) {
+          return Math.round(num)
+        },
+      },
+      computed: {
+        avgHours: function () {
+          var total = 0;
+          var tasks = this.get('tasks')
+          tasks.map(function(t){
+            if (t.checked) total += t.hoursOpen
+          })
+          if (tasks.length > 0) {
+            return total / tasks.length
+          } else {
+            return 0
+          }
+        },
+        longest: function () {
+          var tasks = this.get('tasks')
+          var longest = 0
+          tasks.map(function(t){
+            if (!isNaN(t.hoursOpen)) {
+              if (t.hoursOpen > longest) {
+                if (t.checked) longest = t.hoursOpen
+              }
+            }
+          })
+          return longest;
+        },
+        sum: function () {
+          var tasks = this.get('tasks')
+          var sum = 0;
+          tasks.map(function(t){
+            if (t.checked) sum += t.hoursOpen
+          })
+          return sum
+        }
+
+      }
+    });
+
+    function trySetup() {
+      var key = ractiveApiSetup.get('apiKey');
+
+      AsLead.client = Asana.Client.create().useBasicAuth(key);
+
+      AsLead.client.users.me().then(function(me) {
+        console.log(me)
+
+        ractiveWorkspaces.set({
+          workspaces: me.workspaces
+        })
+
+        // this returns a worspace array
+        // 3736871133687 is our main
+      })
+
+    }
+
+    function selectWorkspace(workspaceId) {
+      AsLead.client.projects.findByWorkspace(workspaceId, { limit: 100 }).then(function(collection){
+        // console.log(collection.data)
+        // array,
+        // cmr - 13122222472783
+        // bnd - 36941853658718
+        ractiveProjects.set({
+          projects: collection.data
+        })
+      })
+    }
+
+    function tasksByProject(projectId) {
+      AsLead.client.tasks.findByProject(projectId, { limit: 100 }).then(function(collection) {
+        // returns task array
+        // console.log(collection.data);
+        tasksForProject(collection);
+      })
+    }
+
+    function tasksForProject(collection) {
+      var tasksByHour = [];
+      // var longest = 0;
+      // var sum = 0;
+
+      collection.data.map(function(task){
+        AsLead.client.tasks.findById(task.id).then(function(item){
+
+          var start = moment(item.created_at);
+
+          // if the item isn't completed, just use "now"
+          if (item.completed) {
+            var end = moment(item.completed_at);
+          } else {
+            var end = moment();
+          }
+
+          var hoursOpen = end.diff(start, 'hours');
+
+          item.hoursOpen = hoursOpen;
+          item.checked = true;
+
+          tasksByHour.push(item)
+
+          // update as we go
+          ractiveTasks.set({
+            tasks: tasksByHour
+          })
+
+        })
+
+      })
+    }
+
+
+
+    var helpers = Ractive.defaults.data;
+    helpers.fromNow = function(timeString){
+        return moment(timeString).fromNow()
+    }
+    helpers.formatTime = function(timeString){
+        return moment(timeString).format("ddd, h:mmA");
+    }
+    helpers.humanizeTime = function(timeString){
+        return moment.duration(timeString).humanize();
+    }
+
+
+  </script>
+</body>
+</html>
