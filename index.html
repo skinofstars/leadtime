@@ -25,7 +25,7 @@
         That is, from the time you open a task to the time you close it.</p>
 
       <div class="row">
-        <div id="keyContainer" class="col-sm-6"></div>
+        <div id="userContainer" class="col-sm-6"></div>
         <div id="netInfo" class="col-sm-6"></div>
       </div>
       <br />
@@ -52,22 +52,15 @@
   <script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.js"></script>
   <script src='//cdnjs.cloudflare.com/ajax/libs/ractive/0.7.3/ractive.js'></script>
 
-  <script id="apiSetup" type="text/ractive">
-    <form on-submit="activate"  class="form-inline">
-      <div class="form-group">
-        <input class="form-control" type="text" placeholder="Your Asana api key" value="{{apiKey}}" />
-      </div>
-
-      {{!-- I think we leave the save APi key, seeing as API keys are being deprecated --}}
-      <!--
-      <div class="checkbox">
-        <label for="savekey">
-          <input type="checkbox" checked="{{saveKey}}" id="savekey"/> Save key?
-        </label>
-      </div>
-      -->
-      <button type="submit" class="btn btn-primary">Activate!</button>
-    </form>
+  <script id="userTemplate" type="text/ractive">
+    <div class="">
+      {{^isAuthed}}
+        <button on-click="goAuth" class="btn btn-primary">Authorise with Asana</button>
+      {{/isAuthed}}
+      {{#isAuthed}}
+        Hello {{username}}. Please select a workspace, then a project.
+      {{/isAuthed}}
+    </div>
   </script>
 
   <script id='workspacesTemplate' type='text/ractive'>
@@ -136,24 +129,33 @@
 
   <script type="text/javascript">
     // our global obj
-    var AsLead = {
-      about: "Project lead time tracker",
-      version: "0.1",
+    var Leadtime = {
+      about: 'Project lead time tracker',
+      version: '0.1',
+      asana_client_id: '57446568468401',
+      asana_redirect_uri: document.location['href'],
       client: null
     }
 
-    var ractiveApiSetup = new Ractive({
-      el: '#keyContainer',
-      template: '#apiSetup',
+    var ractiveUser = new Ractive({
+      el: '#userContainer',
+      template: '#userTemplate',
       data: {
-        apiKey: '',
-        saveKey: false
+        isAuthed: false,
+        me: null // the asana `me`
+      },
+      computed: {
+        username: function() {
+          if (this.me !== undefined) {
+            return this.me.name
+          }
+        }
       }
     })
-    ractiveApiSetup.on('activate', function (event) {
-      event.original.preventDefault()
-      trySetup()
-    });
+    ractiveUser.on('goAuth', function (event) {
+      // event.original.preventDefault()
+      tryOauthSetup();
+    })
 
     var ractiveNetInfo = new Ractive({
       el: '#netInfo',
@@ -247,23 +249,58 @@
       }
     });
 
-    function trySetup() {
-      var key = ractiveApiSetup.get('apiKey');
-      AsLead.client = Asana.Client.create().useBasicAuth(key);
+    function setClient() {
+      // Create a client.
+      Leadtime.client = Asana.Client.create({
+        clientId: Leadtime.asana_client_id,
+        redirectUri: Leadtime.asana_redirect_uri
+      });
 
-      ractiveNetInfo.set('netActive', true)
-      AsLead.client.users.me().then(function(me) {
-        ractiveNetInfo.set('netActive', false)
+      // sets up default redirect flow
+      Leadtime.client.useOauth();
+    }
 
-        ractiveWorkspaces.set({
-          workspaces: me.workspaces
-        })
-      })
+
+    // trigger this on first load?
+    if (document.location.hash.length > 0) {
+      tryOauthSetup();
+    }
+
+    function tryOauthSetup() {
+      if (Leadtime.client === null) setClient();
+
+      // Now call `authorize` to get authorization. If the Oauth token
+      // is already in the URL, it will pull it out and proceed. Otherwise it
+      // will redirect to Asana.
+      Leadtime.client.authorize().then(function() {
+        // The client is authorized!
+
+        ractiveNetInfo.set('netActive', true)
+        return Leadtime.client.users.me().then(function(me) {
+
+          Leadtime.client.users.me().then(function(me) {
+            ractiveNetInfo.set('netActive', false)
+
+            ractiveUser.set({
+              isAuthed: true,
+              me:me
+            });
+
+            ractiveWorkspaces.set({
+              workspaces: me.workspaces
+            })
+          })
+
+        });
+      }).catch(function(err) {
+        console.log('Auth error:', err)
+      });
+
     }
 
     function selectWorkspace(workspaceId) {
       ractiveNetInfo.set('netActive', true)
-      AsLead.client.projects.findByWorkspace(workspaceId, { limit: 100 }).then(function(collection){
+      Leadtime.client.projects.findByWorkspace(workspaceId, { limit: 100 }).then(function(collection){
         ractiveNetInfo.set('netActive', false)
         ractiveProjects.set({
           projects: collection.data
@@ -273,7 +310,7 @@
 
     function tasksByProject(projectId) {
       ractiveNetInfo.set('netActive', true)
-      AsLead.client.tasks.findByProject(projectId, { limit: 100 }).then(function(collection) {
+      Leadtime.client.tasks.findByProject(projectId, { limit: 100 }).then(function(collection) {
         ractiveNetInfo.set('netActive', false)
         tasksForProject(collection);
       })
@@ -286,7 +323,7 @@
 
       collection.data.map(function(task){
         ractiveNetInfo.set('netActive', true)
-        AsLead.client.tasks.findById(task.id).then(function(item){
+        Leadtime.client.tasks.findById(task.id).then(function(item){
           ractiveNetInfo.set('netActive', false)
 
           var start = moment(item.created_at);
